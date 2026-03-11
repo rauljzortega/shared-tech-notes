@@ -1,26 +1,25 @@
-# kubeadm - Kubernetes cluster bootstrapping
-Official docu: https://kubernetes.io/docs/setup/production-environment/container-runtimes/#network-configuration
-- Install kubeadm tool: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/  
-- Creating a cluster: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/  
-- For HA: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/  
-- Kubernetes releases: https://kubernetes.io/releases/  
-- All info about Kubernetes objects (API Groups): https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.34/  
+# Kubernetes Cluster Bootstrapping with kubeadm
+This Kubernetes cluster was deployed on **Rocky Linux 9.7** nodes using the `kubeadm` utility.  
+For the general official guide and system requirements, please refer to the [Kubernetes Production Environment Setup](https://kubernetes.io/docs/setup/production-environment/).  
 
-## Setup summarize (3 nodes example)
-These will be our cluster setup:  
+
+## Setup summary (3 nodes example)
+This will be our cluster setup:  
 - Node 1: **Controlplane**  
 - Nodes 2 & 3: **Worker Nodes**  
 
-To create a k8s cluster using **kubeadm** we need to follow the next steps on each node:  
-1. [Install containerd](#install-containerd-all-nodes) *(All nodes)*
-1. [Install kubernetes tools](#install-k8s-tools-all-nodes) *(All nodes)*
-1. [Initialize Controlplane](#initializing-your-control-plane-node-controlplane) *(Controlplane)*
-1. [Enable POD Network Connectivity](#cni-controlplane) *(Controlplane)*
-1. [Join worker nodes to the cluster](#boot-the-worker-nodes-worker-nodes) *(Worker nodes)*
+To create a Kubernetes cluster using **kubeadm** we need to follow the next steps on the specified nodes:  
+1. [Prepare your nodes](#1-nodes-configuration) *(All nodes)*
+1. [Install containerd](#2-install-containerd-all-nodes) *(All nodes)*
+1. [Install kubernetes tools](#3-install-kubernetes-tools-all-nodes) *(All nodes)*
+1. [Initialize Controlplane](#4-initializing-your-control-plane-node-controlplane) *(Controlplane)*
+1. [Enable POD Network Connectivity](#5-cni-controlplane) *(Controlplane)*
+1. [Join worker nodes to the cluster](#6-join-the-worker-nodes-worker-nodes) *(Worker nodes)*
  
 
-## Create k8s cluster (Installed on Rocky 9.7)  
-### Disable SELinux & Firewalld (All nodes)
+# Create Kubernetes cluster (Installed on Rocky 9.7)  
+## 1. Nodes configuration
+### 1.1. Disable SELinux & Firewalld (All nodes)
 Disable the firewall to allow all Kubernetes and CNI traffic:  
 ```bash
 # Disable firewalld
@@ -34,16 +33,15 @@ sudo setenforce 0
 sudo sed -i 's/^SELINUX=enforcing$/SELINUX=disabled/' /etc/selinux/config
 ```  
 
-### Swap configuration (All nodes)
+### 1.2. Swap configuration (All nodes)
 We must disable swap for Kubernetes to work properly.  
-To disable swap temporarily we can use this command:
+To disable swap temporarily we can use this command:  
 ```bash
 sudo swapoff -a
 ```  
-To disable swap after the system reboot we have to comment or remove the swap line in ```/etc/fstab```.  
+To disable swap after the system reboot we have to comment or remove the swap line in `/etc/fstab`.  
 
-### Network config (All nodes)
-Official docu: https://kubernetes.io/docs/setup/production-environment/container-runtimes/#network-configuration  
+### 1.3. Network configuration (All nodes)
 
 Set up the required kernel modules and make them persistent  
 ```bash
@@ -55,6 +53,7 @@ EOF
 sudo modprobe overlay
 sudo modprobe br_netfilter
 ```  
+
 Set the required kernel parameters and make them persistent
 ```bash
 cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
@@ -66,8 +65,7 @@ EOF
 sudo sysctl --system
 ```  
 
-We have to tell kubernetes what network we want to use for nodes connectivity.  
-By default it takes the first network. In my case the first one is NAT, so we have to tell it to use another network.  
+We have to tell kubernetes what network we want to use for nodes connectivity. By default it takes the first network.  
 In order to set it we use these commands:
 ```bash
 PRIMARY_IP=<yourIPAddress> #Change for your internal IP. Each node has to set its own IP
@@ -77,9 +75,9 @@ KUBELET_EXTRA_ARGS='--node-ip ${PRIMARY_IP}'
 EOF
 ```
 
-### Install containerd (All nodes)
-*Official docu: https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd*  
-Paste to install containerd:  
+## 2. Install containerd (All nodes)
+
+Run the following commands to install containerd:  
 ```bash
 # Add docker repository to install latest containerd version
 sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
@@ -94,9 +92,9 @@ Enable containerd:
 sudo systemctl enable --now containerd
 ```
 
-### Install k8s tools (All nodes)
+## 3. Install Kubernetes tools (All nodes)
 Add Kubernetes yum repo.  
-*NOTE: The repository URL points to v1.35. If you are installing a newer version in the future, make sure to update the URL accordingly (e.g., v1.36).*  
+*NOTE: The repository URL points to v1.35. If you are installing a newer version in the future, make sure to update the URL accordingly (e.g.: v1.36).*  
 ```bash
 cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
 [kubernetes]
@@ -108,7 +106,7 @@ gpgkey=https://pkgs.k8s.io/core:/stable:/v1.35/rpm/repodata/repomd.xml.key
 exclude=kubelet kubeadm kubectl cri-tools kubernetes-cni
 EOF
 ```  
-Install k8s tools (kubectl is optional on worker nodes):  
+Install Kubernetes tools (kubectl is optional on worker nodes):  
 ```bash
 sudo yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
 ```  
@@ -129,7 +127,7 @@ sudo crictl config \
 
 
 
-### Initializing your control-plane node (Controlplane)
+## 4. Initializing your control-plane node (Controlplane)
 To initialize the control-plane we have to use this command: ```kubeadm init <args>```  
 However, we should use some useful flags to modify the default configuration.  
 First, set the IP address you want to use for communication between nodes:
@@ -165,10 +163,11 @@ NOTE: if something went wrong, you solved it and you want to use ```kubeadm init
 kubeadm reset -f
 rm -rf /etc/kubernetes/*
 rm -rf /var/lib/etcd
+sudo rm -rf /etc/cni/net.d
 systemctl restart kubelet
-```
+```  
 
-#### CNI (Controlplane)
+## 5. CNI (Controlplane)
 
 At this moment, if we run ```kubectl get node``` we will see the node is not ready. It's because we have to install a CNI (Container Network Interface) plugin.  
 List of addons: https://kubernetes.io/docs/concepts/cluster-administration/addons/  
@@ -184,7 +183,7 @@ Then, just follow the official documentation steps.
 Afterwards, by running ```kubectl get node``` we will see that the Control Plane node status is ready., so now we can join the worker nodes to the cluster.  
 
 
-### Boot the worker nodes (Worker Nodes)
+## 6. Join the worker nodes (Worker Nodes)
 
 Now you just have to paste the command printed previously when you initialized the control-plane.
 If you lost the join command with the token, you can get it again running on the master node:
@@ -200,8 +199,6 @@ host2    Ready    <none>          18m     v1.35.0
 host3    Ready    <none>          2m47s   v1.35.0
 ```  
 
-### Test
-https://github.com/kodekloudhub/certified-kubernetes-administrator-course/blob/master/kubeadm-clusters/generic/07-test.md  
 
 ## Post-installation (Add-ons)
 ### Helm
@@ -214,3 +211,16 @@ You can easily install it using helm. Follow [this docu](helm/storageclass.md) t
 ### Ingress Controller
 In order to be able to access the web, we must install an Ingress Controller.  
 You can easily install it using helm. Follow [this docu](helm/ingresscontroller.md) to do it.  
+
+
+## Useful links and references
+
+If you need to expand this setup, configure High Availability, or check specific API versions, refer to the official Kubernetes documentation below:
+
+* **Kubernetes Releases:** https://kubernetes.io/releases/  
+* **Network Configuration:** https://kubernetes.io/docs/setup/production-environment/container-runtimes/#network-configuration  
+* **Install containerd**https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd*  
+* **Installing kubeadm:** https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/  
+* **Creating a Cluster:** https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/  
+* **High Availability (HA):** https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/  
+* **Kubernetes objects (API Groups - v1.34):** https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.34/  
