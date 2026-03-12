@@ -7,7 +7,7 @@
 - Install an [Ingress Controller](../kubernetes/helm/ingresscontroller.md)
 - Install a [Storage Class](../kubernetes/helm/storageclass.md)
 
-## 2. ClearML installation
+## 2. ClearML Server installation
 
 *Official documentation reference: https://github.com/clearml/clearml-helm-charts/tree/main/charts/clearml*  
 
@@ -103,7 +103,7 @@ If this happens, follow these steps:
 helm upgrade clearml clearml/clearml -f clearml-helm-charts/charts/clearml/values-production.yaml
 ```
 
-## 3. Verifying the installation
+### 2.4. Verifying the installation
 
 Check the status of your pods by executing ```kubectl get pods``` and wait until you have all your ClearML pods "Running".  
 Example output:  
@@ -123,3 +123,47 @@ clearml-webserver-cf8c779bd-f9js4                1/1     Running   1 (7m13s ago)
 ```  
 
 Finally, use the URL set previously in `values-production.yaml` (e.g.: http://app.clearml.172-16-10-11.nip.io/) in your web browser to check if your ClearML app is successfully running.
+
+
+## 3. ClearML Agent installation
+
+In order to be able to schedule and run jobs, you must install the ClearML Agent.  
+
+### 3.1. Create API Credentials
+First you need to create your API credentials. Open the ClearML web interface and log in. Click on your user icon in the top right corner, navigate to **Settings** > **Workspace**, and click on **"Create new credentials"**. Copy the Access Key and Secret Key provided. These credentials will allow the agent to authenticate with the ClearML server.  
+
+### 3.2. Configure your Agent deployment
+Create a `values-agent.yaml` file and configure it using the credentials you got in the previous step:  
+```yaml
+clearml:
+  agentk8sglueKey: "YOUR_ACCESS_KEY"
+  agentk8sglueSecret: "YOUR_SECRET_KEY"
+
+agentk8sglue:
+  apiServerUrlReference: "YOUR_APISERVER_URL"
+  fileServerUrlReference: "YOUR_FILESERVER_URL"
+  webServerUrlReference: "YOUR_WEBSERVER_URL"
+  queue: default
+```
+For the URL references, it is highly recommended to use the internal Kubernetes service names and ports instead of the public ingress domains. This avoids connection issues. For example:  
+```yaml
+agentk8sglue:
+  apiServerUrlReference: "http://clearml-apiserver:8008"
+  fileServerUrlReference: "http://clearml-fileserver:8081"
+  webServerUrlReference: "http://clearml-webserver:8080"
+  queue: default
+```
+*NOTE: you may edit the template provided by ClearML (`clearml-helm-charts/charts/clearml-agent/values.yaml`) instead of creating a new YAML file.*  
+
+### 3.3. Install the Agent
+Install the agent using Helm:  
+```bash
+helm upgrade --install clearml-agent clearml/clearml-agent -f values-agent.yaml
+```  
+
+### 3.4. Verifying the installation
+Finally, check if the Agent is already running:  
+```bash
+kubectl get pods
+```  
+If your ClearML-Agent pod is in "Running" state, you should now be able to schedule and execute your jobs.  
