@@ -155,6 +155,10 @@ To start using your cluster, you need to run the following as a regular user:
   sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
   sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
+In the case your are working as root:
+
+  export KUBECONFIG=/etc/kubernetes/admin.conf
+
 [...]
 ```
 
