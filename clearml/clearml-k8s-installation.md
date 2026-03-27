@@ -1,5 +1,7 @@
 # ClearML with Kubernetes
 
+*Official documentation reference: https://github.com/clearml/clearml-helm-charts/tree/main/charts/clearml*  
+
 ## 1. Prerequisites
 
 - Install a [Kubernetes cluster](../kubernetes/kubernetes-installation.md)   
@@ -7,9 +9,7 @@
 - Install an [Ingress Controller](../kubernetes/helm/ingresscontroller.md)
 - Install a [Storage Class](../kubernetes/helm/storageclass.md)
 
-## 2. ClearML Server installation
-
-*Official documentation reference: https://github.com/clearml/clearml-helm-charts/tree/main/charts/clearml*  
+## 2. ClearML Server installation 
 
 Once you have your Kubernetes cluster installed with Helm, follow these steps:  
 
@@ -66,7 +66,7 @@ helm install clearml clearml/clearml -f clearml-helm-charts/charts/clearml/value
 ```  
 
 
-Depending on your Kubernetes version, you might find an error like this:
+Depending on your Kubernetes version, you might find an error like this:  
 ```
 [rjuarez@controlplane clearml-helm-charts]$ helm install clearml clearml/clearml -f clearml-helm-charts/charts/clearml/values-production.yaml
 Error: INSTALLATION FAILED: failed to create typed patch object (default/clearml-mongodb; apps/v1, Kind=StatefulSet): .spec.updateStrategy.rollingUpdate.maxSurge: field not declared in schema
@@ -158,8 +158,8 @@ agentk8sglue:
 ### 3.3. Install the Agent
 Install the agent using Helm:  
 ```bash
-helm upgrade --install clearml-agent clearml/clearml-agent -f values-agent.yaml
-```  
+helm install clearml-agent clearml/clearml-agent -f values-agent.yaml
+```   
 
 ### 3.4. Verifying the installation
 Finally, check if the Agent is already running:  
@@ -167,3 +167,24 @@ Finally, check if the Agent is already running:
 kubectl get pods
 ```  
 If your ClearML-Agent pod is in "Running" state, you should now be able to schedule and execute your jobs.  
+
+#### Troubleshooting: Agent Pod in Error State
+If your `clearml-agent` pod starts running but suddenly changes its state to "Error", you may have found a bug.  
+You can fix it by replacing the `agentk8sglue` block in your `values-agent.yaml` with this configuration, which disables the auto-update behavior:  
+```yaml
+agentk8sglue:
+  apiServerUrlReference: "http://clearml-apiserver:8008"
+  fileServerUrlReference: "http://clearml-fileserver:8081"
+  webServerUrlReference: "http://clearml-webserver:8080"
+  queue: default
+  extraEnvs:
+    - name: CLEARML_AGENT_NO_UPDATE
+      value: "true"
+```  
+Update the installation:  
+```bash
+helm uninstall clearml-agent
+helm install clearml-agent clearml/clearml-agent -f values-agent.yaml
+```  
+
+Finally, check `kubectl get pods` again to verify if the Agent is running properly.  
